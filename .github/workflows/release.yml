@@ -1,0 +1,78 @@
+name: Release
+
+# Build the native plugin on GitHub's CI runner and publish a Release with the
+# packaged plugin.zip + plugin.json as assets. This makes every released binary
+# auditable: it is built from source by a public, reproducible pipeline rather
+# than uploaded by hand.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.0
+
+      - name: Read plugin metadata
+        id: meta
+        run: |
+          ID=$(jq -r .id plugin.json)
+          VER=$(jq -r .version plugin.json)
+          ENTRY=$(jq -r .entry plugin.json)
+          echo "id=$ID"       >> "$GITHUB_OUTPUT"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "entry=$ENTRY" >> "$GITHUB_OUTPUT"
+          echo "Building $ID v$VER (entry=$ENTRY)"
+
+      - name: Cross-compile the native plugin
+        run: |
+          set -euo pipefail
+          OUT="out/${{ steps.meta.outputs.id }}"
+          mkdir -p "$OUT"
+          zig cc -target x86_64-windows-gnu -shared -O2 -Wall -Wextra \
+            -o "$OUT/${{ steps.meta.outputs.entry }}" src/voicekey.c -Isrc
+          # Stage the plugin package contents (entry files at the archive root).
+          cp plugin.json panel.html README.md LICENSE "$OUT/"
+          [ -f preview.png ] && cp preview.png "$OUT/"
+
+      - name: Package plugin.zip
+        run: |
+          set -euo pipefail
+          OUT="out/${{ steps.meta.outputs.id }}"
+          ( cd "$OUT" && zip -9 -r ../plugin.zip . )
+          # Sanity: manifest must be at the archive root.
+          unzip -l out/plugin.zip | tee /dev/stderr | grep -q " plugin.json$"
+
+      - name: Verify manifest
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          m = json.load(open("plugin.json", encoding="utf-8"))
+          for k in ("id","name","version","runtime","entry","kind","api_version","capabilities"):
+              assert k in m, f"missing manifest field: {k}"
+          assert m["runtime"] == "native" and m["kind"] == "utility"
+          print("manifest OK:", m["id"], m["version"], m["capabilities"])
+          PY
+
+      - name: Create / update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VoiceKey ${{ steps.meta.outputs.version }}
+          files: |
+            out/plugin.zip
+            plugin.json
+          fail_on_unmatched_files: true

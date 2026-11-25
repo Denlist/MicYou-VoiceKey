@@ -7,7 +7,6 @@
 *.obj
 *.ilk
 *.zip
-!market/plugin/dev.denlist.voicekey/plugin.zip
 
 # zig
 /.zig-cache/

@@ -19,7 +19,7 @@
 #include "micyou_plugin_abi.h"
 
 static const char *const PLUGIN_ID      = "dev.denlist.voicekey";
-static const char *const PLUGIN_VERSION = "1.0.0";
+static const char *const PLUGIN_VERSION = "1.1.0";
 
 /* ── host table (copied by value in init, as the ABI requires) ───────────── */
 static mpl_host_api_t g_host;
@@ -30,13 +30,13 @@ typedef struct {
     int      enabled;
     char     keys[128];
     float    threshold;
-    uint32_t silence_ms;
-    uint32_t min_hold_ms;
-    uint32_t max_hold_ms;
-    uint32_t start_delay_ms;
-    uint32_t cooldown_ms;
+    uint32_t silence_ms;      /* how long silent before releasing            */
+    uint32_t min_hold_ms;     /* keep held at least this long (debounce)      */
+    uint32_t max_hold_ms;     /* safety cap: force release after this long    */
+    uint32_t start_delay_ms;  /* debounce before pressing (ignore blips)     */
+    uint32_t cooldown_ms;     /* ignore new speech for this long after release*/
     int      only_when_streaming;
-    int      inject_scan;      /* 0 = VK (default), 1 = scancode */
+    int      inject_scan;     /* 0 = VK (default), 1 = scancode */
 } config_t;
 
 static config_t g_cfg;
@@ -46,7 +46,8 @@ typedef struct {
     int      pressed;
     int      have_start;
     DWORD    press_tick;
-    int      started;
+    int      started;         /* 1 once we've actually pressed for this utterance */
+    DWORD    last_release_tick; /* for cooldown */
     float    last_level;
     int      streaming;
     int      muted;
@@ -231,6 +232,7 @@ static void do_press(void) {
         g_pressed_keys[g_pressed_count++] = vks[i];
     }
     g_st.pressed = 1;
+    g_st.started = 1;
     g_st.press_tick = GetTickCount();
     if (g_host.log)
         g_host.log(g_host.ctx, MPL_LOG_INFO, "[VoiceKey] 检测到语音，已按下按键");
@@ -245,7 +247,9 @@ static void do_release(const char *reason) {
     }
     g_pressed_count = 0;
     g_st.pressed = 0;
+    g_st.started = 0;
     g_st.have_start = 0;
+    g_st.last_release_tick = GetTickCount();
     if (g_host.log && reason) {
         char msg[160];
         _snprintf_s(msg, sizeof(msg), _TRUNCATE, "[VoiceKey] 已松开按键（%s）", reason);
@@ -308,7 +312,12 @@ static void poll_once(void) {
     static DWORD s_below_since = 0;
     if (active) s_below_since = 0;
 
-    if (active && !g_st.pressed) {
+    /* cooldown: after a release, ignore new speech briefly so trailing noise
+     * doesn't immediately re-trigger. */
+    int in_cooldown = (g_cfg.cooldown_ms > 0) &&
+                      (now - g_st.last_release_tick < g_cfg.cooldown_ms);
+
+    if (active && !in_cooldown && !g_st.pressed) {
         if (!g_st.have_start) { g_st.have_start = 1; g_st.press_tick = now; }
         if (now - g_st.press_tick >= g_cfg.start_delay_ms) {
             do_press();
@@ -316,10 +325,17 @@ static void poll_once(void) {
     } else if (!active && g_st.pressed) {
         if (!s_below_since) s_below_since = now;
         DWORD held = now - s_below_since;
-        if (held >= g_cfg.silence_ms) {
+        /* release only once silent long enough AND held at least min_hold_ms */
+        if (held >= g_cfg.silence_ms &&
+            (now - g_st.press_tick) >= g_cfg.min_hold_ms) {
             do_release("静音超时");
             s_below_since = 0;
         }
+    }
+
+    /* cancel a pending start if the blip ended before start_delay elapsed */
+    if (!active && g_st.have_start && !g_st.pressed) {
+        g_st.have_start = 0;
     }
 
     /* safety: max hold */

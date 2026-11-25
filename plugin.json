@@ -1,7 +1,7 @@
 {
   "id": "dev.denlist.voicekey",
   "name": "VoiceKey — 语音自动按键",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Denlist",
   "description": "Automatically hold a configurable key combo (default Ctrl+Win) while phone audio is detected, so WeChat/Sogou voice typing enters push-to-talk mode hands-free.",
   "nameI18n": {
@@ -19,7 +19,7 @@
   "platforms": ["windows"],
   "arches": ["x86_64"],
   "api_version": 2,
-  "capabilities": ["audio.state", "config.read", "config.write", "event.emit"],
+  "capabilities": ["audio.state", "config.read", "config.write"],
   "license": "Unlicense",
   "homepage": "https://github.com/Denlist/MicYou-VoiceKey",
   "repository": "https://github.com/Denlist/MicYou-VoiceKey",
@@ -44,7 +44,6 @@
     "maxHoldMs": 60000,
     "startDelayMs": 120,
     "cooldownMs": 800,
-    "mode": "hold",
     "injectMode": "vk",
     "onlyWhenStreaming": true
   },
@@ -58,7 +57,6 @@
       { "key": "maxHoldMs", "fieldType": "number", "label": "最长按住(ms)", "default": 60000, "min": 1000, "max": 600000, "step": 500 },
       { "key": "startDelayMs", "fieldType": "number", "label": "开始延迟(ms)", "default": 120, "min": 0, "max": 2000, "step": 10 },
       { "key": "cooldownMs", "fieldType": "number", "label": "冷却时间(ms)", "default": 800, "min": 0, "max": 5000, "step": 50 },
-      { "key": "mode", "fieldType": "select", "label": "触发模式", "default": "hold", "options": [ { "value": "hold", "label": "按住说话" } ] },
       { "key": "injectMode", "fieldType": "select", "label": "按键注入方式", "default": "vk", "options": [ { "value": "vk", "label": "虚拟键码 (VK)" }, { "value": "scan", "label": "扫描码 (ScanCode)" } ] },
       { "key": "onlyWhenStreaming", "fieldType": "boolean", "label": "仅在音频流时触发", "default": true }
     ]

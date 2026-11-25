@@ -24,7 +24,7 @@ MicYou 把手机变成电脑的麦克风后，想用微信输入法的语音输�
 在 MicYou 的插件市场里搜索 **VoiceKey** 安装。
 
 ### 方式二：手动导入
-1. 下载本仓库 Release 里的 `plugin.zip`。
+1. 下载本仓库 [Releases](https://github.com/Denlist/MicYou-VoiceKey/releases) 里最新的 `plugin.zip`（由 CI 从源码自动构建）。
 2. 用 MicYou 的「从文件安装插件」导入。
 
 > **⚠️ 安装/启用后必须重启 MicYou。** `micyou-cli plugin enable` 只写状态文件，不会通知正在运行的进程重新加载插件。
@@ -48,7 +48,7 @@ MicYou 把手机变成电脑的麦克风后，想用微信输入法的语音输�
 | `minHoldMs` | 最短按住时长（防抖，ms） | `700` |
 | `maxHoldMs` | 最长按住时长（保险，ms） | `60000` |
 | `startDelayMs` | 检测到语音后延迟多久按下（ms） | `120` |
-| `cooldownMs` | 两次触发之间的冷却（ms） | `800` |
+| `cooldownMs` | 松开后这段时间内忽略新语音，防止尾音二次触发（ms） | `800` |
 | `injectMode` | 按键注入方式：`vk` 虚拟键码 / `scan` 扫描码 | `vk` |
 | `onlyWhenStreaming` | 仅在音频流活动中才触发 | `true` |
 
@@ -95,17 +95,23 @@ zig cc -target x86_64-windows-gnu -municode -O2 -o dist\loadprobe.exe test\loadp
 .\dist\loadprobe.exe            # 应输出 RESULT: PASS
 ```
 
+## 自动构建与发布
+
+仓库带 GitHub Actions 工作流（`.github/workflows/release.yml`）：推 `v*` 标签时，CI runner 会用 zig 从源码交叉编译 `voicekey.dll`、打包 `plugin.zip`，并自动创建 Release 上传 `plugin.zip` 与 `plugin.json`。发布的二进制全部来自公开、可复现的 CI 构建，不是手工上传。
+
 ## 目录结构
 
 ```
 MicYou-VoiceKey/
+├─ .github/workflows/
+│  └─ release.yml      # CI：打 tag 自动构建并发布 Release
 ├─ plugin.json          # MicYou 插件清单
 ├─ panel.html           # 插件配置面板
 ├─ src/
 │  ├─ voicekey.c        # 插件主逻辑（C）
 │  └─ micyou_plugin_abi.h
 ├─ scripts/
-│  ├─ build.ps1         # 一键构建 / 校验 / 打包
+│  ├─ build.ps1         # 本地一键构建 / 校验 / 打包
 │  ├─ preview.c         # 生成封面图
 │  └─ savepng.c         # GDI+ PNG 写出
 ├─ test/
