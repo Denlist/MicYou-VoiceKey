@@ -1,94 +1,102 @@
-# VoiceKey 开源发布步骤
+# VoiceKey 开源发布步骤（符合 MicYou 作者审计意见）
 
-工程目录：`D:\Download\MicYou-VoiceKey`（已 `git init`、已首次提交，分支 `main`）
+工程目录：`D:\Download\MicYou-VoiceKey`（已 `git init`、分支 `main`、远程 `origin` 已配好）
+当前版本：**v1.1.1**
+
+> 本版按 MicYou 作者邮件回复整改：
+> ① 市场仓库**只提交 manifest + 缩略图 + 源码**，**不提交二进制**；
+> ② 删除死代码，能力声明与代码实际调用严格一致（去掉从未调用的 `event.emit`）；
+> ③ 用 **GitHub Actions CI runner 自动构建并发布二进制**，不再手动打包上传。
 
 ---
 
-## 一、在 GitHub 建仓库
+## 一、源码仓库（一次性，已完成）
 
-1. 打开 https://github.com/new
-2. **Repository name**：`MicYou-VoiceKey`
-3. 可见性：`Public`
-4. **不要**勾选 "Add a README / .gitignore / license"（本地已有，避免冲突）
-5. 点 **Create repository**
+远程：https://github.com/Denlist/MicYou-VoiceKey
 
-## 二、推送本地代码
-
-在 `D:\Download\MicYou-VoiceKey` 打开 PowerShell：
+推送更新：
 
 ```powershell
 cd D:\Download\MicYou-VoiceKey
-git remote add origin https://github.com/Denlist/MicYou-VoiceKey.git
-git push -u origin main
+git push origin main
 ```
 
-（若提示登录，用浏览器弹出的 GitHub 授权，或 Personal Access Token 作为密码。）
+## 二、CI 自动构建发布（已完成，以后每发新版照做）
 
-## 三、打 Release（发布下载产物）
+`.github/workflows/release.yml` 已就位：**推 `v*` 标签即自动**在 GitHub 的 CI runner 上用 zig 从源码交叉编译、打包 `plugin.zip`、并创建 Release 上传 `plugin.zip` + `plugin.json`。
 
-插件市场通过 `releases/latest/download/` 拉取更新，所以必须发 Release，并**上传 2 个 asset**：
+以后发新版的流程：
 
-1. 打开 https://github.com/Denlist/MicYou-VoiceKey/releases/new
-2. **Tag**：`v1.0.0`（新建 tag）
-3. **Title**：`VoiceKey v1.0.0`
-4. 附件（Assets）上传这两个文件：
-   - `D:\Download\MicYou-VoiceKey\dist\plugin.zip`
-   - `D:\Download\MicYou-VoiceKey\plugin.json`
-5. 点 **Publish release**
+```powershell
+cd D:\Download\MicYou-VoiceKey
+# 1) 改版本号：plugin.json 的 version、src/voicekey.c 的 PLUGIN_VERSION（两处保持一致）
+#    （market 目录里的 plugin.json / src 也要同步）
+# 2) 提交
+git add -A; git commit -m "vX.Y.Z: ..."; git push origin main
+# 3) 打 tag 触发 CI 构建发布（关键：tag 名以 v 开头）
+git tag -a vX.Y.Z -m "VoiceKey vX.Y.Z"; git push origin vX.Y.Z
+```
 
-> 验证：发布后重启 MicYou，日志里那条 `update check ... 404 Not Found` 告警应消失。
+到仓库 **Actions** 页可以看构建进度；成功后 **Releases** 页会自动出现带 `plugin.zip` + `plugin.json` 的发布。
 
-## 四、给插件市场提 PR
+> 提示：`releases/latest/download/plugin.zip` 有 CDN 缓存，刚发完可能短时间内仍指向旧版，属正常。
+
+## 三、给插件市场提 PR
 
 市场仓库：https://github.com/MicYou-Dev/MicYou-Plugins
+贡献要求：https://github.com/MicYou-Dev/MicYou-Plugins/blob/main/CONTRIBUTING.md
 
-已准备好的提交目录在：`D:\Download\MicYou-VoiceKey\market\plugin\dev.denlist.voicekey\`
-包含 4 个文件：`plugin.json`、`plugin.zip`、`preview.png`、`README.md`
+**提交目录**：`D:\Download\MicYou-VoiceKey\market\plugin\dev.denlist.voicekey\`
+里面**只有 5 个文件**（无二进制）：
 
-两种提法任选其一：
+```
+plugin.json              # 清单
+preview.png              # 缩略图（640×360）
+README.md                # 说明
+src/voicekey.c           # 源码（供审计）
+src/micyou_plugin_abi.h  # 源码
+```
 
-**A. 网页提（最快，无需 git 知识）**
-1. 先把 MicYou-Plugins **Fork** 到自己账号
-2. 在自己 fork 里进入路径 `plugin/` → **Add file → Upload files**
-3. 在上传框里**新建文件夹** `dev.denlist.voicekey`，把上面 4 个文件拖进去上传
-4. Commit → 然后回到 MicYou-Plugins 主仓库点 **New pull request**，选择你的 fork 的 `main` 分支
+> ⚠️ **不要放 `plugin.zip`**。二进制由 CI 构建并挂在源码仓库的 Release 上，市场清单里的 `downloadUrl` 已指向 `releases/latest/download/plugin.zip`。
 
-**B. 命令行提**
+### 网页提法（最快）
+
+1. 先把 MicYou-Plugins **Fork** 到自己账号（Denlist/MicYou-Plugins）
+2. 进入 fork 的 `plugin/dev.denlist.voicekey/` 目录
+3. **删掉**里面旧的 `plugin.zip`（如已上传过）
+4. **Add file → Upload files**，把 `market\plugin\dev.denlist.voicekey\` 下的 5 个文件（含 `src/` 文件夹）拖进去，覆盖旧文件
+5. Commit → 回到你的 fork 页面，点 **Contribute → Open pull request**，base 选 `MicYou-Dev/MicYou-Plugins:main`
+6. 标题写 `Add plugin dev.denlist.voicekey (VoiceKey)`，提交
+
+> CI 会自动重新生成 `index.json` 和根 README 表格，不用手动改。
+
+### 命令行提法
+
 ```powershell
-git clone https://github.com/<你的用户名>/MicYou-Plugins.git
+git clone https://github.com/Denlist/MicYou-Plugins.git
 cd MicYou-Plugins
-New-Item -ItemType Directory -Force plugin\dev.denlist.voicekey
-Copy-Item D:\Download\MicYou-VoiceKey\market\plugin\dev.denlist.voicekey\* plugin\dev.denlist.voicekey\
+# 清掉旧的二进制（若有）
+Remove-Item plugin\dev.denlist.voicekey\plugin.zip -ErrorAction SilentlyContinue
+Copy-Item D:\Download\MicYou-VoiceKey\market\plugin\dev.denlist.voicekey\* plugin\dev.denlist.voicekey\ -Recurse -Force
 git add plugin/dev.denlist.voicekey
 git commit -m "Add plugin dev.denlist.voicekey (VoiceKey)"
 git push
+# 然后到 GitHub 对 MicYou-Dev/MicYou-Plugins 开 PR
 ```
-然后在 GitHub 上对着 MicYou-Plugins 主仓库开 PR。
-
-> **CI 会自动**重新生成 `index.json` 和 README 表格，你不用手动改这两处。
 
 ---
 
-## 五、版本升级流程（以后再发新版时）
-
-1. 改 `plugin.json` 的 `version`（如 `1.0.1`）+ 代码
-2. 重新构建打包：`pwsh -ExecutionPolicy Bypass -File .\scripts\build.ps1`
-3. 同步 `market\plugin\dev.denlist.voicekey\` 里的 4 个文件
-4. 打新 Release（tag `v1.0.1`），上传新的 `plugin.zip` + `plugin.json`
-5. 给市场仓库提 PR 更新 `plugin.zip` / `plugin.json` / `preview.png`
-
----
-
-## 附：本机测试结果（已验证）
+## 附：本机测试结果（v1.1.1，已验证）
 
 | 项目 | 结果 |
 | --- | --- |
-| `micyou-cli plugin validate` | ✅ OK / exit 0 |
+| `micyou-cli plugin validate` | ✅ OK / exit 0（version=1.1.1，capabilities 3 项） |
 | `test\loadprobe.exe`（复刻宿主加载链） | ✅ RESULT: PASS |
 | `test\hostsim.exe`（假宿主注入验证） | ✅ 9 passed, 0 failed |
-| 本机 MicYou 真实加载 | ✅ DLL locked + 日志 `VoiceKey 已启动` + GUI 不崩溃 |
+| GitHub Actions 构建 | ✅ success（v1.1.1） |
+| Release 产物 | ✅ plugin.zip(110872B) + plugin.json，无 pdb/lib |
 
-## 附：构建（需要重编时）
+## 附：本地构建（需要重编时）
 
 ```powershell
 # 一键（自动找/下载 zig，编译、校验、打包）
