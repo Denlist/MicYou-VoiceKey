@@ -1,7 +1,7 @@
 {
   "id": "dev.denlist.voicekey",
   "name": "VoiceKey — 语音自动按键",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "Denlist",
   "description": "Automatically hold a configurable key combo (default Ctrl+Win) while phone audio is detected, so WeChat/Sogou voice typing enters push-to-talk mode hands-free.",
   "nameI18n": {

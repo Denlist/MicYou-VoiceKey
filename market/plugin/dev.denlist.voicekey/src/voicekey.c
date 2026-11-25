@@ -19,7 +19,7 @@
 #include "micyou_plugin_abi.h"
 
 static const char *const PLUGIN_ID      = "dev.denlist.voicekey";
-static const char *const PLUGIN_VERSION = "1.1.0";
+static const char *const PLUGIN_VERSION = "1.1.1";
 
 /* ── host table (copied by value in init, as the ABI requires) ───────────── */
 static mpl_host_api_t g_host;

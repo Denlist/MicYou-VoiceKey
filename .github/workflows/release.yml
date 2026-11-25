@@ -52,6 +52,8 @@ jobs:
         run: |
           set -euo pipefail
           OUT="out/${{ steps.meta.outputs.id }}"
+          # Drop toolchain artifacts that must not ship in the install package.
+          rm -f "$OUT"/*.pdb "$OUT"/*.lib "$OUT"/*.exp "$OUT"/*.ilk
           ( cd "$OUT" && zip -9 -r ../plugin.zip . )
           # Sanity: manifest must be at the archive root.
           unzip -l out/plugin.zip | tee /dev/stderr | grep -q " plugin.json$"
